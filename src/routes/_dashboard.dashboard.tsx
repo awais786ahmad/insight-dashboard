@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PageShell } from "@/components/dashboard/page-shell";
+import { DashboardPage } from "@/components/dashboard/dashboard-page";
 
 export const Route = createFileRoute("/_dashboard/dashboard")({
   head: () => ({
@@ -15,5 +15,5 @@ export const Route = createFileRoute("/_dashboard/dashboard")({
 });
 
 function Page() {
-  return <PageShell title="Overview" description="Live pipeline, calling and campaign performance for your workspace." entity="widget" />;
+  return <DashboardPage />;
 }
