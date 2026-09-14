@@ -148,9 +148,10 @@ export function WidgetLibraryModal({
                   </button>
                 );
               })}
-              {visible.length === 0 ? (
-                <p className="col-span-full py-12 text-center text-sm text-muted-foreground">No widgets match your search.</p>
-              ) : null}
+                {visible.length === 0 ? (
+                  <p className="col-span-full py-12 text-center text-sm text-muted-foreground">No widgets match your search.</p>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
