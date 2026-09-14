@@ -684,7 +684,7 @@ export const widgetCatalogue: WidgetDefinition[] = [
     data: {
       kind: "table",
       columns: [{ key: "team", label: "Team" }, { key: "calls", label: "Calls", align: "right" }, { key: "connect", label: "Connect", align: "right" }, { key: "conv", label: "Conv.", align: "right" }, { key: "qa", label: "QA", align: "right" }],
-      rows: teamRows.map((t) => ({ team: t.team, calls: t.calls.toLocaleString(), connect: `${t.connect}%`, conv: `${t.conversion}%`, qa: t.qa })),
+      rows: teamRows.map((t) => ({ team: t.team, calls: t.calls.toLocaleString(), connect: `${t.connect}%`, conv: t.conversion === null ? "—" : `${t.conversion}%`, qa: t.qa })),
     },
   },
   {
