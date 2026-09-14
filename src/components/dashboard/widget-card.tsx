@@ -77,7 +77,7 @@ export function WidgetCard({
   const openLink = () => {
     if (!def.link) return;
     const opts = { to: def.link.to, ...(def.link.search ? { search: def.link.search } : {}) };
-    navigate(opts as Parameters<typeof navigate>[0]);
+    navigate(opts as unknown as Parameters<typeof navigate>[0]);
   };
 
   /* ---- pointer based resize handle (snaps to grid units) ---- */

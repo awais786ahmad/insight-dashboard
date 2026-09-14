@@ -63,13 +63,11 @@ export function WidgetBody({
       return (
         <RankedBars
           items={data.items}
-          format={
-            data.format === "percent"
-              ? (n) => `${n}%`
-              : data.format === "score"
-                ? (n) => `${n}`
-                : undefined
-          }
+          {...(data.format === "percent"
+            ? { format: (n: number) => `${n}%` }
+            : data.format === "score"
+              ? { format: (n: number) => `${n}` }
+              : {})}
         />
       );
     case "funnel":
@@ -291,6 +289,7 @@ function ActionsBody({ data }: { data: Extract<WidgetData, { kind: "actions" }> 
     <div className="grid grid-cols-2 gap-2">
       {data.items.map((it) => {
         const Icon = icons[it.icon as keyof typeof icons];
+        if (!it.to) return null;
         return (
           <Button key={it.label} asChild variant="outline" className="h-auto justify-start gap-2 px-3 py-2 text-xs">
             <Link to={it.to}>

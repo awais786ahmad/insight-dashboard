@@ -1552,7 +1552,10 @@ export const widgetCatalogue: WidgetDefinition[] = [
     configurable: false,
     link: { to: "/reports/quality", label: "Open intelligence" },
     actions: ["Open rejected calls", "Update scripts"],
-    data: { kind: "ranked", items: negativeReasons.slice(0, 6) },
+    data: {
+      kind: "ranked",
+      items: negativeReasons.slice(0, 6).map((r) => ({ label: r.reason, value: r.calls })),
+    },
   },
 
   /* ------------------------------------------------------------- I. Tasks */
