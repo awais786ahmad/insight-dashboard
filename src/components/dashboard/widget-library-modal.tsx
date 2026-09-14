@@ -101,7 +101,8 @@ export function WidgetLibraryModal({
               </div>
             </div>
 
-            <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visible.map((w) => {
                 const active = activeIds.has(w.id);
                 const data = resolveData(w, scope);
