@@ -74,6 +74,7 @@ export const dashboardNav: NavItem[] = [
       { label: "Members", to: "/organization/members" },
       { label: "Roles & permissions", to: "/organization/roles" },
       { label: "AI agents", to: "/organization/ai-agents" },
+      { label: "Activity & Audit Log", to: "/organization/activity-log" },
     ],
   },
   {
