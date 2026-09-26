@@ -327,6 +327,7 @@ export function TasksPage() {
       <DetailDrawer
         open={!!active}
         onOpenChange={(v) => !v && setActive(null)}
+        activity={active ? { entityType: "Task", entityId: active.id, record: active.title } : null}
         title={active?.title ?? ""}
         description={active?.description ?? ""}
         footer={

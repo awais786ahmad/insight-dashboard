@@ -39,6 +39,7 @@ import { Route as DashboardCrmSegmentsRouteImport } from './routes/_dashboard.cr
 import { Route as DashboardCrmTagsRouteImport } from './routes/_dashboard.crm.tags'
 import { Route as DashboardCrmTasksRouteImport } from './routes/_dashboard.crm.tasks'
 import { Route as DashboardCrmTemplatesRouteImport } from './routes/_dashboard.crm.templates'
+import { Route as DashboardOrganizationActivityLogRouteImport } from './routes/_dashboard.organization.activity-log'
 import { Route as DashboardOrganizationAiAgentsRouteImport } from './routes/_dashboard.organization.ai-agents'
 import { Route as DashboardOrganizationMembersRouteImport } from './routes/_dashboard.organization.members'
 import { Route as DashboardOrganizationRolesRouteImport } from './routes/_dashboard.organization.roles'
@@ -204,6 +205,12 @@ const DashboardCrmTemplatesRoute = DashboardCrmTemplatesRouteImport.update({
   path: '/crm/templates',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardOrganizationActivityLogRoute =
+  DashboardOrganizationActivityLogRouteImport.update({
+    id: '/organization/activity-log',
+    path: '/organization/activity-log',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const DashboardOrganizationAiAgentsRoute =
   DashboardOrganizationAiAgentsRouteImport.update({
     id: '/organization/ai-agents',
@@ -321,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/crm/tags': typeof DashboardCrmTagsRoute
   '/crm/tasks': typeof DashboardCrmTasksRoute
   '/crm/templates': typeof DashboardCrmTemplatesRoute
+  '/organization/activity-log': typeof DashboardOrganizationActivityLogRoute
   '/organization/ai-agents': typeof DashboardOrganizationAiAgentsRoute
   '/organization/members': typeof DashboardOrganizationMembersRoute
   '/organization/roles': typeof DashboardOrganizationRolesRoute
@@ -366,6 +374,7 @@ export interface FileRoutesByTo {
   '/crm/tags': typeof DashboardCrmTagsRoute
   '/crm/tasks': typeof DashboardCrmTasksRoute
   '/crm/templates': typeof DashboardCrmTemplatesRoute
+  '/organization/activity-log': typeof DashboardOrganizationActivityLogRoute
   '/organization/ai-agents': typeof DashboardOrganizationAiAgentsRoute
   '/organization/members': typeof DashboardOrganizationMembersRoute
   '/organization/roles': typeof DashboardOrganizationRolesRoute
@@ -414,6 +423,7 @@ export interface FileRoutesById {
   '/_dashboard/crm/tags': typeof DashboardCrmTagsRoute
   '/_dashboard/crm/tasks': typeof DashboardCrmTasksRoute
   '/_dashboard/crm/templates': typeof DashboardCrmTemplatesRoute
+  '/_dashboard/organization/activity-log': typeof DashboardOrganizationActivityLogRoute
   '/_dashboard/organization/ai-agents': typeof DashboardOrganizationAiAgentsRoute
   '/_dashboard/organization/members': typeof DashboardOrganizationMembersRoute
   '/_dashboard/organization/roles': typeof DashboardOrganizationRolesRoute
@@ -462,6 +472,7 @@ export interface FileRouteTypes {
     | '/crm/tags'
     | '/crm/tasks'
     | '/crm/templates'
+    | '/organization/activity-log'
     | '/organization/ai-agents'
     | '/organization/members'
     | '/organization/roles'
@@ -507,6 +518,7 @@ export interface FileRouteTypes {
     | '/crm/tags'
     | '/crm/tasks'
     | '/crm/templates'
+    | '/organization/activity-log'
     | '/organization/ai-agents'
     | '/organization/members'
     | '/organization/roles'
@@ -554,6 +566,7 @@ export interface FileRouteTypes {
     | '/_dashboard/crm/tags'
     | '/_dashboard/crm/tasks'
     | '/_dashboard/crm/templates'
+    | '/_dashboard/organization/activity-log'
     | '/_dashboard/organization/ai-agents'
     | '/_dashboard/organization/members'
     | '/_dashboard/organization/roles'
@@ -802,6 +815,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCrmTemplatesRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/organization/activity-log': {
+      id: '/_dashboard/organization/activity-log'
+      path: '/organization/activity-log'
+      fullPath: '/organization/activity-log'
+      preLoaderRoute: typeof DashboardOrganizationActivityLogRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_dashboard/organization/ai-agents': {
       id: '/_dashboard/organization/ai-agents'
       path: '/organization/ai-agents'
@@ -946,6 +966,7 @@ interface DashboardRouteChildren {
   DashboardCrmTagsRoute: typeof DashboardCrmTagsRoute
   DashboardCrmTasksRoute: typeof DashboardCrmTasksRoute
   DashboardCrmTemplatesRoute: typeof DashboardCrmTemplatesRoute
+  DashboardOrganizationActivityLogRoute: typeof DashboardOrganizationActivityLogRoute
   DashboardOrganizationAiAgentsRoute: typeof DashboardOrganizationAiAgentsRoute
   DashboardOrganizationMembersRoute: typeof DashboardOrganizationMembersRoute
   DashboardOrganizationRolesRoute: typeof DashboardOrganizationRolesRoute
@@ -972,6 +993,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCrmTagsRoute: DashboardCrmTagsRoute,
   DashboardCrmTasksRoute: DashboardCrmTasksRoute,
   DashboardCrmTemplatesRoute: DashboardCrmTemplatesRoute,
+  DashboardOrganizationActivityLogRoute: DashboardOrganizationActivityLogRoute,
   DashboardOrganizationAiAgentsRoute: DashboardOrganizationAiAgentsRoute,
   DashboardOrganizationMembersRoute: DashboardOrganizationMembersRoute,
   DashboardOrganizationRolesRoute: DashboardOrganizationRolesRoute,
