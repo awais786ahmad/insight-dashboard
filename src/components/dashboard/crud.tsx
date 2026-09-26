@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useRightDrawerRegistration } from "@/components/dashboard/shell-context";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RecordActivityPanel, type ActivityTarget } from "@/components/activity/record-activity";
 
 /** Confirmation step required before every create or delete operation. */
 export function ConfirmDialog({
@@ -154,6 +156,7 @@ export function DetailDrawer({
   description,
   children,
   footer,
+  activity,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -161,8 +164,14 @@ export function DetailDrawer({
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** When set, the drawer is split into Overview / Activity tabs. */
+  activity?: ActivityTarget | null;
 }) {
   useRightDrawerRegistration(open);
+  const [tab, setTab] = React.useState("overview");
+  React.useEffect(() => {
+    if (open) setTab("overview");
+  }, [open, activity?.entityId]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -171,7 +180,22 @@ export function DetailDrawer({
           <SheetTitle>{title}</SheetTitle>
           {description ? <SheetDescription>{description}</SheetDescription> : null}
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-4 pb-6">{children}</div>
+        <div className="flex-1 overflow-y-auto px-4 pb-6">
+          {activity ? (
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="activity">Activity</TabsTrigger>
+              </TabsList>
+              <TabsContent value="overview">{children}</TabsContent>
+              <TabsContent value="activity" className="pt-4">
+                <RecordActivityPanel target={activity} />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            children
+          )}
+        </div>
         {footer ? <div className="border-t border-border p-4">{footer}</div> : null}
       </SheetContent>
     </Sheet>
