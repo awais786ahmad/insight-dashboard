@@ -46,7 +46,7 @@ function matchesDate(e: AuditEvent, date: string) {
   if (date === "Any time" || date === "Last 30 days") return true;
   if (date === "Today") return e.day === "Today";
   if (date === "Yesterday") return e.day === "Yesterday";
-  return e.day !== "18 September 2026" || date !== "Last 7 days" ? e.day !== "18 September 2026" : false;
+  return e.day !== "18 September 2026";
 }
 
 export function ActivityLogPage() {
