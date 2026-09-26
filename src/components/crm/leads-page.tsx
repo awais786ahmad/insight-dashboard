@@ -416,6 +416,7 @@ export function LeadsPage() {
       <DetailDrawer
         open={!!active}
         onOpenChange={(v) => !v && setActive(null)}
+        activity={active ? { entityType: "Lead", entityId: active.id, record: active.name } : null}
         title={active?.name ?? ""}
         description={active ? `${active.company} · ${active.phone}` : ""}
         footer={

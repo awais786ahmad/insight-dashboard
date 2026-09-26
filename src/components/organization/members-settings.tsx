@@ -283,6 +283,7 @@ export function MembersSettings() {
       <DetailDrawer
         open={!!active}
         onOpenChange={(v) => !v && setActive(null)}
+        activity={active ? { entityType: "Member", entityId: active.id, record: active.name } : null}
         title={active?.name ?? ""}
         description={active?.jobTitle ?? ""}
       >

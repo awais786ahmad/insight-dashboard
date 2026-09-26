@@ -227,6 +227,7 @@ export function TeamsSettings() {
       <DetailDrawer
         open={!!active}
         onOpenChange={(v) => !v && setActive(null)}
+        activity={active ? { entityType: "Team", entityId: active.id, record: active.name } : null}
         title={active?.name ?? ""}
         description={active?.description ?? ""}
       >

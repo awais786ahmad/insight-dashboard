@@ -39,6 +39,7 @@ import {
   type Campaign,
   type CampaignStatus,
 } from "@/data/campaigns";
+import { RecordActivityPanel } from "@/components/activity/record-activity";
 import { dataTableSeed, scriptSeed, segmentSeed, templateSeed } from "@/data/crm";
 
 const tabs = [
@@ -50,6 +51,7 @@ const tabs = [
   "Data Tables",
   "Automations",
   "Analytics",
+  "Activity",
 ] as const;
 
 export function CampaignsPage() {
@@ -382,6 +384,9 @@ export function CampaignsPage() {
                 </TabsContent>
                 <TabsContent value="Analytics">
                   <AnalyticsTab campaign={active} />
+                </TabsContent>
+                <TabsContent value="Activity">
+                  <RecordActivityPanel target={{ entityType: "Campaign", entityId: active.id, record: active.name }} />
                 </TabsContent>
               </Tabs>
             </>
