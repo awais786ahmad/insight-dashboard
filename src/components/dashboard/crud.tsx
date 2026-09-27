@@ -183,13 +183,17 @@ export function DetailDrawer({
         <div className="flex-1 overflow-y-auto px-4 pb-6">
           {activity ? (
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
               </TabsList>
               <TabsContent value="overview">{children}</TabsContent>
               <TabsContent value="activity" className="pt-4">
                 <RecordActivityPanel target={activity} />
+              </TabsContent>
+              <TabsContent value="notes" className="pt-4">
+                <RecordNotes key={activity.entityId} />
               </TabsContent>
             </Tabs>
           ) : (
