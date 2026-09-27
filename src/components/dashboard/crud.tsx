@@ -183,13 +183,17 @@ export function DetailDrawer({
         <div className="flex-1 overflow-y-auto px-4 pb-6">
           {activity ? (
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
               </TabsList>
               <TabsContent value="overview">{children}</TabsContent>
               <TabsContent value="activity" className="pt-4">
                 <RecordActivityPanel target={activity} />
+              </TabsContent>
+              <TabsContent value="notes" className="pt-4">
+                <RecordNotes key={activity.entityId} />
               </TabsContent>
             </Tabs>
           ) : (
@@ -199,5 +203,41 @@ export function DetailDrawer({
         {footer ? <div className="border-t border-border p-4">{footer}</div> : null}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function RecordNotes() {
+  const [notes, setNotes] = React.useState<{ id: number; text: string; at: string }[]>([]);
+  const [draft, setDraft] = React.useState("");
+  const add = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setNotes((n) => [{ id: Date.now(), text, at: new Date().toLocaleString() }, ...n]);
+    setDraft("");
+  };
+  return (
+    <div className="space-y-3">
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Add an internal note…"
+        className="min-h-20 w-full rounded-md border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <div className="flex justify-end">
+        <Button size="sm" onClick={add} disabled={!draft.trim()}>
+          Add note
+        </Button>
+      </div>
+      {notes.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">No notes yet.</p>
+      ) : (
+        notes.map((n) => (
+          <div key={n.id} className="rounded-lg border border-border p-3">
+            <p className="whitespace-pre-wrap text-sm">{n.text}</p>
+            <p className="mt-1 text-xs text-muted-foreground">You · {n.at}</p>
+          </div>
+        ))
+      )}
+    </div>
   );
 }
