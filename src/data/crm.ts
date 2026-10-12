@@ -159,7 +159,8 @@ export type Lead = {
   company: string;
   lastContacted: string;
   stage: LeadStage;
-  status: "New" | "Contacted" | "Qualified" | "Won" | "Lost" | "Archived";
+  /** Id of a column in the lead status pipeline. */
+  status: string;
   tags: string[];
   segments: string[];
   campaign: string;
@@ -478,12 +479,15 @@ export type Task = {
   id: string;
   title: string;
   description: string;
-  status: "Pending" | "Active" | "Overdue" | "Completed";
+  /** Id of a column in the task status board. */
+  status: string;
   priority: "Low" | "Medium" | "High";
   assignee: string;
   createdBy: string;
   reason: string;
+  /** ISO date (yyyy-mm-dd) or empty when there is no due date. */
   dueDate: string;
+  createdAt: string;
   relatedLead: string;
   relatedCampaign: string;
   activity: { id: string; when: string; text: string }[];
@@ -499,7 +503,8 @@ export const taskSeed: Task[] = [
     assignee: "Sara Ahmed",
     createdBy: "AI Agent — Nova",
     reason: "Lead asked for pricing during the last call.",
-    dueDate: "Today, 18:00",
+    dueDate: "2026-10-12",
+    createdAt: "2026-10-10",
     relatedLead: "Ali Raza",
     relatedCampaign: "Spring Outbound",
     activity: [{ id: "a1", when: "Today, 11:25", text: "Task created by AI after call analysis" }],
@@ -513,7 +518,8 @@ export const taskSeed: Task[] = [
     assignee: "Hina Raza",
     createdBy: "Sara Ahmed",
     reason: "Lead missed the scheduled demo.",
-    dueDate: "Tomorrow, 12:00",
+    dueDate: "2026-10-13",
+    createdAt: "2026-10-08",
     relatedLead: "Bilal Tariq",
     relatedCampaign: "Demo Follow-ups",
     activity: [{ id: "a1", when: "4 days ago", text: "Task created manually" }],
@@ -522,12 +528,13 @@ export const taskSeed: Task[] = [
     id: "k3",
     title: "Verify Crestwood phone number",
     description: "Number bounced twice — enrich before dialling.",
-    status: "Overdue",
+    status: "Active",
     priority: "Low",
     assignee: "Bilal Khan",
     createdBy: "System",
     reason: "Two consecutive invalid-number results.",
-    dueDate: "3 days ago",
+    dueDate: "2026-10-09",
+    createdAt: "2026-10-05",
     relatedLead: "Ayesha Siddiqui",
     relatedCampaign: "Spring Outbound",
     activity: [{ id: "a1", when: "1 week ago", text: "Task created by system" }],
@@ -541,7 +548,8 @@ export const taskSeed: Task[] = [
     assignee: "AI Agent — Nova",
     createdBy: "Automation",
     reason: "Policy expiry rule triggered.",
-    dueDate: "Fri, 15:00",
+    dueDate: "2026-10-16",
+    createdAt: "2026-10-09",
     relatedLead: "Usman Sheikh",
     relatedCampaign: "Renewal Push Q3",
     activity: [{ id: "a1", when: "3 days ago", text: "Created by the renewal automation" }],
@@ -555,14 +563,32 @@ export const taskSeed: Task[] = [
     assignee: "Sara Ahmed",
     createdBy: "Sara Ahmed",
     reason: "Deal marked as won.",
-    dueDate: "1 week ago",
+    dueDate: "2026-10-05",
+    createdAt: "2026-09-30",
     relatedLead: "Kamran Ali",
     relatedCampaign: "Winback 2026",
     activity: [{ id: "a1", when: "1 week ago", text: "Completed by Sara Ahmed" }],
   },
 ];
 
-export const taskStatuses = ["Pending", "Active", "Overdue", "Completed"] as const;
+export type StatusColumn = { id: string; name: string; description: string };
+
+export const leadStatusColumnsSeed: StatusColumn[] = [
+  { id: "New", name: "New", description: "Fresh leads that have not been contacted yet." },
+  { id: "Contacted", name: "Contacted", description: "Reached at least once by an agent or AI." },
+  { id: "Qualified", name: "Qualified", description: "Confirmed fit, budget and interest." },
+  { id: "Won", name: "Won", description: "Closed deals and converted customers." },
+  { id: "Lost", name: "Lost", description: "Not interested or chose a competitor." },
+  { id: "Archived", name: "Archived", description: "Invalid, duplicate or do-not-call." },
+];
+
+export const taskStatusColumnsSeed: StatusColumn[] = [
+  { id: "Pending", name: "Pending", description: "Not started yet." },
+  { id: "Active", name: "Active", description: "Being worked on right now." },
+  { id: "Completed", name: "Completed", description: "Done and closed." },
+];
+
+export const taskStatuses = ["Pending", "Active", "Completed"] as const;
 export const taskPriorities = ["Low", "Medium", "High"] as const;
 
 /* ----------------------------------------------------------- Data tables */
