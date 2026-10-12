@@ -1,45 +1,50 @@
 import * as React from "react";
-import { CalendarClock, CheckCircle2, Plus, Search, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarPlus, Check, ChevronsUpDown, Plus, Search, Settings2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { ConfirmDialog, DetailDrawer, RecordFormModal } from "@/components/dashboard/crud";
 import { FieldRow, SettingsHeader } from "@/components/settings/settings-header";
+import { StatusBoard, statusName } from "@/components/crm/status-board";
+import { cn } from "@/lib/utils";
 import {
   crmAgents,
   crmCampaigns,
   leadSeed,
   taskPriorities,
   taskSeed,
-  taskStatuses,
+  taskStatusColumnsSeed,
+  type StatusColumn,
   type Task,
 } from "@/data/crm";
 
-const statusTone: Record<Task["status"], string> = {
-  Pending: "bg-sky-500/15 text-sky-600 border-sky-500/30",
-  Active: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-  Overdue: "bg-rose-500/15 text-rose-600 border-rose-500/30",
-  Completed: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+const priorityTone: Record<Task["priority"], string> = {
+  Low: "bg-muted text-muted-foreground border-border",
+  Medium: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  High: "bg-rose-500/15 text-rose-600 border-rose-500/30",
 };
 
-const priorityTone: Record<Task["priority"], string> = {
-  Low: "text-muted-foreground",
-  Medium: "text-amber-600",
-  High: "text-rose-600",
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const formatDate = (iso: string) => {
+  if (!iso) return "No due date";
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 };
 
 const emptyForm = {
@@ -53,22 +58,148 @@ const emptyForm = {
   reason: "",
 };
 
+/** Searchable assignee picker (combobox). */
+function AssigneePicker({
+  value,
+  onChange,
+  allowAll,
+  className,
+  compact,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  allowAll?: boolean;
+  className?: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-label="Assignee"
+          className={cn("justify-between font-normal", compact && "h-7 px-2 text-xs", className)}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="truncate">{value || "All assignees"}</span>
+          <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 p-0" align="start" onClick={(e) => e.stopPropagation()}>
+        <Command>
+          <CommandInput placeholder="Search assignee…" />
+          <CommandList>
+            <CommandEmpty>No one found.</CommandEmpty>
+            <CommandGroup>
+              {allowAll ? (
+                <CommandItem
+                  value="All assignees"
+                  onSelect={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn("mr-2 size-4", value ? "opacity-0" : "opacity-100")} />
+                  All assignees
+                </CommandItem>
+              ) : null}
+              {crmAgents.map((a) => (
+                <CommandItem
+                  key={a}
+                  value={a}
+                  onSelect={() => {
+                    onChange(a);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn("mr-2 size-4", value === a ? "opacity-100" : "opacity-0")} />
+                  {a}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function TasksPage() {
   const [list, setList] = React.useState<Task[]>(taskSeed);
+  const [columns, setColumns] = React.useState<StatusColumn[]>(taskStatusColumnsSeed);
+  const [editingColumns, setEditingColumns] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const [tab, setTab] = React.useState<"All" | Task["status"]>("All");
+  const [assignee, setAssignee] = React.useState("");
+  const [priority, setPriority] = React.useState<string>("All");
+  const [from, setFrom] = React.useState("");
+  const [to, setTo] = React.useState("");
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Task | null>(null);
   const [active, setActive] = React.useState<Task | null>(null);
   const [deleting, setDeleting] = React.useState<Task | null>(null);
   const [form, setForm] = React.useState(emptyForm);
+  const [today, setToday] = React.useState("");
 
+  React.useEffect(() => setToday(todayIso()), []);
+
+  const doneId = columns.find((c) => c.name.toLowerCase() === "completed")?.id;
+  const isOverdue = (t: Task) => !!today && !!t.dueDate && t.dueDate < today && t.status !== doneId;
+
+  const q = query.trim().toLowerCase();
   const filtered = list.filter(
     (t) =>
-      (tab === "All" || t.status === tab) &&
-      (t.title.toLowerCase().includes(query.toLowerCase()) ||
-        t.assignee.toLowerCase().includes(query.toLowerCase())),
+      (!q || t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)) &&
+      (!assignee || t.assignee === assignee) &&
+      (priority === "All" || t.priority === priority) &&
+      (!from || (t.dueDate && t.dueDate >= from)) &&
+      (!to || (t.dueDate && t.dueDate <= to)),
   );
+  const hasFilters = !!(q || assignee || priority !== "All" || from || to);
+  const overdueCount = filtered.filter(isOverdue).length;
+
+  const clearFilters = () => {
+    setQuery("");
+    setAssignee("");
+    setPriority("All");
+    setFrom("");
+    setTo("");
+  };
+
+  const patch = (id: string, fn: (t: Task) => Task) => {
+    setList((l) => l.map((t) => (t.id === id ? fn(t) : t)));
+    setActive((a) => (a && a.id === id ? fn(a) : a));
+  };
+
+  const log = (t: Task, text: string): Task["activity"] => [
+    { id: crypto.randomUUID(), when: "just now", text },
+    ...t.activity,
+  ];
+
+  const changeStatus = (id: string, statusId: string) => {
+    const task = list.find((t) => t.id === id);
+    if (!task || task.status === statusId) return;
+    const name = statusName(columns, statusId);
+    patch(id, (t) => ({ ...t, status: statusId, activity: log(t, `Moved to ${name}`) }));
+    toast.success(`"${task.title}" moved to ${name}`);
+  };
+
+  const changeAssignee = (id: string, who: string) => {
+    patch(id, (t) => (t.assignee === who ? t : { ...t, assignee: who, activity: log(t, `Reassigned to ${who}`) }));
+    toast.success(`Assigned to ${who}`);
+  };
+
+  const updateColumns = (next: StatusColumn[], removed?: StatusColumn) => {
+    if (removed) {
+      const fallback = next[0]!;
+      setList((l) => l.map((t) => (t.status === removed.id ? { ...t, status: fallback.id } : t)));
+      toast.success(`"${removed.name}" deleted`);
+    } else if (next.length > columns.length) {
+      toast.success(`"${next[next.length - 1]!.name}" status added`);
+    }
+    setColumns(next);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -97,9 +228,7 @@ export function TasksPage() {
       return;
     }
     if (editing) {
-      const next = { ...editing, ...form, title: form.title.trim() };
-      setList((l) => l.map((t) => (t.id === editing.id ? next : t)));
-      setActive((a) => (a && a.id === editing.id ? next : a));
+      patch(editing.id, (t) => ({ ...t, ...form, title: form.title.trim() }));
       toast.success("Task updated");
       return;
     }
@@ -108,9 +237,9 @@ export function TasksPage() {
         id: crypto.randomUUID(),
         ...form,
         title: form.title.trim(),
-        status: "Pending",
+        status: columns[0]!.id,
         createdBy: "You",
-        dueDate: form.dueDate || "No due date",
+        createdAt: todayIso(),
         reason: form.reason || "Created manually.",
         activity: [{ id: "a1", when: "just now", text: "Task created manually" }],
       },
@@ -119,111 +248,136 @@ export function TasksPage() {
     toast.success("Task created");
   };
 
-  const complete = (task: Task) => {
-    const next: Task = {
-      ...task,
-      status: "Completed",
-      activity: [{ id: crypto.randomUUID(), when: "just now", text: "Marked complete" }, ...task.activity],
-    };
-    setList((l) => l.map((t) => (t.id === task.id ? next : t)));
-    setActive((a) => (a && a.id === task.id ? next : a));
-    toast.success("Task completed");
-  };
-
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <SettingsHeader
         title="Tasks"
         description="Follow-ups and callbacks created by you, your team, automations or the AI agent after a call."
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 size-4" />
-            New task
-          </Button>
+          <div className="flex gap-2">
+            <Button variant={editingColumns ? "default" : "outline"} onClick={() => setEditingColumns((v) => !v)}>
+              {editingColumns ? <Check className="mr-2 size-4" /> : <Settings2 className="mr-2 size-4" />}
+              {editingColumns ? "Done editing" : "Edit columns"}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 size-4" />
+              New task
+            </Button>
+          </div>
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList>
-            <TabsTrigger value="All">All</TabsTrigger>
-            {taskStatuses.map((s) => (
-              <TabsTrigger key={s} value={s}>
-                {s}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="relative w-full max-w-sm">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks or assignee" className="pl-9" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name or description"
+            className="pl-9"
+          />
+        </div>
+        <AssigneePicker value={assignee} onChange={setAssignee} allowAll className="w-48" />
+        <Select value={priority} onValueChange={setPriority}>
+          <SelectTrigger className="w-36" aria-label="Priority">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All priorities</SelectItem>
+            {taskPriorities.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1.5 rounded-md border border-input px-2">
+          <CalendarClock className="size-4 text-muted-foreground" />
+          <input
+            type="date"
+            aria-label="Due from"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+            className="h-9 bg-transparent text-sm outline-none"
+          />
+          <span className="text-xs text-muted-foreground">to</span>
+          <input
+            type="date"
+            aria-label="Due to"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            className="h-9 bg-transparent text-sm outline-none"
+          />
+        </div>
+        {hasFilters ? (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <X className="mr-1 size-4" />
+            Clear
+          </Button>
+        ) : null}
+        <div className="ml-auto text-sm text-muted-foreground">
+          {filtered.length} task{filtered.length === 1 ? "" : "s"}
+          {overdueCount ? <span className="font-semibold text-destructive"> · {overdueCount} overdue</span> : null}
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Task</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Assignee</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((task) => (
-                <TableRow key={task.id} className="cursor-pointer" onClick={() => setActive(task)}>
-                  <TableCell>
-                    <div className="font-medium">{task.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {task.relatedLead} · {task.relatedCampaign}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone[task.status]}`}>
-                      {task.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className={`text-sm font-medium ${priorityTone[task.priority]}`}>{task.priority}</TableCell>
-                  <TableCell className="text-sm">{task.assignee}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CalendarClock className="size-3.5" />
-                      {task.dueDate}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={task.status === "Completed"}
-                        onClick={() => complete(task)}
-                        aria-label="Complete task"
-                      >
-                        <CheckCircle2 className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleting(task)} aria-label="Delete task">
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!filtered.length ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                    Nothing here. Tasks appear as your team and AI agents work leads.
-                  </TableCell>
-                </TableRow>
+      {editingColumns ? (
+        <p className="rounded-xl border border-dashed border-accent/40 bg-accent-soft px-4 py-2.5 text-sm text-muted-foreground">
+          Drag columns to reorder them, or use the pencil and bin icons to rename or delete a status.
+        </p>
+      ) : null}
+
+      <StatusBoard
+        columns={columns}
+        onColumnsChange={updateColumns}
+        items={filtered}
+        getStatus={(t) => t.status}
+        onMoveItem={changeStatus}
+        editing={editingColumns}
+        entityLabel="task"
+        emptyText={hasFilters ? "No matching tasks" : "Drop a task here"}
+        renderCard={(task) => {
+          const overdue = isOverdue(task);
+          return (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setActive(task)}
+              onKeyDown={(e) => e.key === "Enter" && setActive(task)}
+              className={cn(
+                "w-full rounded-xl border bg-background p-3 text-left transition-shadow hover:shadow-sm",
+                overdue ? "border-2 border-destructive" : "border-border",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-sm font-medium leading-snug">{task.title}</div>
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${priorityTone[task.priority]}`}>
+                  {task.priority}
+                </span>
+              </div>
+              {task.description ? (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
               ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              <div className="mt-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <AssigneePicker compact value={task.assignee} onChange={(v) => changeAssignee(task.id, v)} className="w-full" />
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1" title="Created">
+                  <CalendarPlus className="size-3" />
+                  {formatDate(task.createdAt)}
+                </span>
+                <span className={cn("inline-flex items-center gap-1", overdue && "text-destructive")} title="Due">
+                  <CalendarClock className="size-3" />
+                  {formatDate(task.dueDate)}
+                </span>
+              </div>
+              {overdue ? <p className="mt-2 text-xs font-bold uppercase tracking-wide text-destructive">Overdue</p> : null}
+            </div>
+          );
+        }}
+      />
 
       <RecordFormModal
         open={formOpen}
@@ -269,18 +423,7 @@ export function TasksPage() {
           </div>
           <div className="space-y-2">
             <Label>Assignee</Label>
-            <Select value={form.assignee} onValueChange={(v) => setForm((f) => ({ ...f, assignee: v }))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {crmAgents.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {a}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AssigneePicker value={form.assignee} onChange={(v) => setForm((f) => ({ ...f, assignee: v }))} className="w-full" />
           </div>
           <div className="space-y-2">
             <Label>Related lead</Label>
@@ -314,12 +457,12 @@ export function TasksPage() {
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="task-due">Due</Label>
+          <Label htmlFor="task-due">Due date</Label>
           <Input
             id="task-due"
+            type="date"
             value={form.dueDate}
             onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-            placeholder="e.g. Tomorrow, 12:00"
           />
         </div>
       </RecordFormModal>
@@ -331,31 +474,50 @@ export function TasksPage() {
         title={active?.title ?? ""}
         description={active?.description ?? ""}
         footer={
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-between gap-2">
+            <Button variant="ghost" onClick={() => active && setDeleting(active)}>
+              <Trash2 className="mr-2 size-4" />
+              Delete
+            </Button>
             <Button variant="outline" onClick={() => active && openEdit(active)}>
               Edit task
-            </Button>
-            <Button disabled={active?.status === "Completed"} onClick={() => active && complete(active)}>
-              Mark complete
             </Button>
           </div>
         }
       >
         {active ? (
           <div className="space-y-6 pt-4">
+            {isOverdue(active) ? (
+              <p className="rounded-xl border-2 border-destructive px-4 py-2 text-sm font-bold text-destructive">
+                Overdue — was due {formatDate(active.dueDate)}
+              </p>
+            ) : null}
             <div className="rounded-xl border border-border p-4">
               <FieldRow
                 label="Status"
                 value={
-                  <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone[active.status]}`}>
-                    {active.status}
-                  </span>
+                  <Select value={active.status} onValueChange={(v) => changeStatus(active.id, v)}>
+                    <SelectTrigger className="h-8 w-40" aria-label="Change status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {columns.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 }
               />
               <FieldRow label="Priority" value={active.priority} />
-              <FieldRow label="Assignee" value={active.assignee} />
+              <FieldRow
+                label="Assignee"
+                value={<AssigneePicker value={active.assignee} onChange={(v) => changeAssignee(active.id, v)} className="h-8 w-44" />}
+              />
               <FieldRow label="Created by" value={active.createdBy} />
-              <FieldRow label="Due" value={active.dueDate} />
+              <FieldRow label="Created" value={formatDate(active.createdAt)} />
+              <FieldRow label="Due" value={formatDate(active.dueDate)} />
               <FieldRow label="Lead" value={active.relatedLead} />
               <FieldRow label="Campaign" value={<Badge variant="outline">{active.relatedCampaign}</Badge>} />
             </div>
