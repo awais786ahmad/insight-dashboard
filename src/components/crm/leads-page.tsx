@@ -1,7 +1,9 @@
 import * as React from "react";
 import {
   Building2,
+  Check,
   Columns3,
+  Settings2,
   Mail,
   Phone,
   Plus,
@@ -27,15 +29,17 @@ import {
   crmAgents,
   crmCampaigns,
   leadSeed,
-  leadStatuses,
+  leadStatusColumnsSeed,
   pipelineStagesSeed,
   segmentSeed,
   tagClass,
   tagSeed,
   type Lead,
+  type StatusColumn,
 } from "@/data/crm";
+import { StatusBoard } from "@/components/crm/status-board";
 
-const statusTone: Record<Lead["status"], string> = {
+const statusTone: Record<string, string> = {
   New: "bg-sky-500/15 text-sky-600 border-sky-500/30",
   Contacted: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   Qualified: "bg-violet-500/15 text-violet-600 border-violet-500/30",
@@ -43,6 +47,8 @@ const statusTone: Record<Lead["status"], string> = {
   Lost: "bg-rose-500/15 text-rose-600 border-rose-500/30",
   Archived: "bg-muted text-muted-foreground border-border",
 };
+const customTone = "bg-accent-soft text-foreground border-accent/30";
+const toneFor = (id: string) => statusTone[id] ?? customTone;
 
 const emptyForm = {
   name: "",
@@ -64,7 +70,8 @@ export function LeadsPage() {
   const [editing, setEditing] = React.useState<Lead | null>(null);
   const [active, setActive] = React.useState<Lead | null>(null);
   const [deleting, setDeleting] = React.useState<Lead | null>(null);
-  const [dragging, setDragging] = React.useState<string | null>(null);
+  const [columns, setColumns] = React.useState<StatusColumn[]>(leadStatusColumnsSeed);
+  const [editingColumns, setEditingColumns] = React.useState(false);
   const [form, setForm] = React.useState(emptyForm);
 
   const filtered = list.filter((l) => {
@@ -132,24 +139,47 @@ export function LeadsPage() {
     toast.success("Lead created");
   };
 
-  const moveStage = (leadId: string, stage: string) => {
-    const stageName = pipelineStagesSeed.find((s) => s.id === stage)?.name ?? stage;
-    setList((l) =>
-      l.map((lead) =>
-        lead.id === leadId
-          ? {
-              ...lead,
-              stage,
-              timeline: [
-                { id: crypto.randomUUID(), when: "just now", text: `Moved to ${stageName}` },
-                ...lead.timeline,
-              ],
-            }
-          : lead,
-      ),
-    );
-    toast.success(`Moved to ${stageName}`);
+  const changeStatus = (leadId: string, statusId: string) => {
+    const col = columns.find((c) => c.id === statusId);
+    if (!col) return;
+    const current = list.find((l) => l.id === leadId);
+    if (!current || current.status === statusId) return;
+    const update = (lead: Lead): Lead => ({
+      ...lead,
+      status: statusId,
+      timeline: [{ id: crypto.randomUUID(), when: "just now", text: `Status changed to ${col.name}` }, ...lead.timeline],
+    });
+    setList((l) => l.map((lead) => (lead.id === leadId ? update(lead) : lead)));
+    setActive((a) => (a && a.id === leadId ? update(a) : a));
+    toast.success(`${current.name} moved to ${col.name}`);
   };
+
+  const updateColumns = (next: StatusColumn[], removed?: StatusColumn) => {
+    if (removed) {
+      const fallback = next[0]!;
+      setList((l) => l.map((lead) => (lead.status === removed.id ? { ...lead, status: fallback.id } : lead)));
+      if (status === removed.id) setStatus("All Leads");
+      toast.success(`"${removed.name}" deleted`);
+    } else if (next.length > columns.length) {
+      toast.success(`"${next[next.length - 1]!.name}" status added`);
+    }
+    setColumns(next);
+  };
+
+  const statusSelect = (lead: Lead, className = "h-8 w-36") => (
+    <Select value={lead.status} onValueChange={(v) => changeStatus(lead.id, v)}>
+      <SelectTrigger className={`${className} rounded-full border px-2.5 text-xs font-medium ${toneFor(lead.status)}`} aria-label="Change status">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {columns.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -157,14 +187,31 @@ export function LeadsPage() {
         title="Leads"
         description="Every person in your CRM with their calls, messages, tags and pipeline stage in one place."
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 size-4" />
-            New lead
-          </Button>
+          <div className="flex gap-2">
+            {view === "pipeline" ? (
+              <Button
+                variant={editingColumns ? "default" : "outline"}
+                onClick={() => setEditingColumns((v) => !v)}
+              >
+                {editingColumns ? <Check className="mr-2 size-4" /> : <Settings2 className="mr-2 size-4" />}
+                {editingColumns ? "Done editing" : "Edit columns"}
+              </Button>
+            ) : null}
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 size-4" />
+              New lead
+            </Button>
+          </div>
         }
       />
 
-      <Tabs value={view} onValueChange={setView} className="space-y-4">
+      <Tabs
+        value={view}
+        onValueChange={(v) => {
+          setView(v);
+          setEditingColumns(false);
+        }}
+        className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="table">
@@ -191,9 +238,10 @@ export function LeadsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {leadStatuses.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
+                <SelectItem value="All Leads">All Leads</SelectItem>
+                {columns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -227,11 +275,7 @@ export function LeadsPage() {
                         <div>{lead.phone}</div>
                         <div className="text-xs">{lead.email}</div>
                       </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone[lead.status]}`}>
-                          {lead.status}
-                        </span>
-                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>{statusSelect(lead)}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {lead.tags.map((t) => (
@@ -275,63 +319,46 @@ export function LeadsPage() {
         </TabsContent>
 
         <TabsContent value="pipeline" className="m-0">
-          <div className="grid gap-4 overflow-x-auto md:grid-cols-3 xl:grid-cols-5">
-            {pipelineStagesSeed.map((stage) => {
-              const inStage = filtered.filter((l) => l.stage === stage.id);
-              return (
-                <div
-                  key={stage.id}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => {
-                    if (dragging) moveStage(dragging, stage.id);
-                    setDragging(null);
-                  }}
-                  className="flex min-w-[240px] flex-col rounded-2xl border border-border bg-muted/30 p-3"
-                >
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-sm font-medium">{stage.name}</span>
-                    <Badge variant="outline">{inStage.length}</Badge>
-                  </div>
-                  <p className="mb-3 text-xs text-muted-foreground">{stage.rule}</p>
-                  <div className="space-y-2">
-                    {inStage.map((lead) => (
-                      <button
-                        key={lead.id}
-                        draggable
-                        onDragStart={() => setDragging(lead.id)}
-                        onDragEnd={() => setDragging(null)}
-                        onClick={() => setActive(lead)}
-                        className="w-full cursor-grab rounded-xl border border-border bg-background p-3 text-left transition-shadow hover:shadow-sm active:cursor-grabbing"
-                      >
-                        <div className="text-sm font-medium">{lead.name}</div>
-                        <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Building2 className="size-3" />
-                          {lead.company}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {lead.tags.map((t) => (
-                            <span
-                              key={t}
-                              className={`rounded-full border px-2 py-0.5 text-[11px] ${tagClass(
-                                tagSeed.find((x) => x.name === t)?.color ?? "amber",
-                              )}`}
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      </button>
-                    ))}
-                    {!inStage.length ? (
-                      <p className="rounded-xl border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
-                        Drop a lead here
-                      </p>
-                    ) : null}
-                  </div>
+          {editingColumns ? (
+            <p className="mb-3 rounded-xl border border-dashed border-accent/40 bg-accent-soft px-4 py-2.5 text-sm text-muted-foreground">
+              Drag columns to reorder them, or use the pencil and bin icons to rename or delete a status.
+            </p>
+          ) : null}
+          <StatusBoard
+            columns={columns}
+            onColumnsChange={updateColumns}
+            items={filtered}
+            getStatus={(l) => l.status}
+            onMoveItem={changeStatus}
+            editing={editingColumns}
+            entityLabel="lead"
+            emptyText="Drop a lead here"
+            renderCard={(lead) => (
+              <button
+                type="button"
+                onClick={() => setActive(lead)}
+                className="w-full rounded-xl border border-border bg-background p-3 text-left transition-shadow hover:shadow-sm"
+              >
+                <div className="text-sm font-medium">{lead.name}</div>
+                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Building2 className="size-3" />
+                  {lead.company}
                 </div>
-              );
-            })}
-          </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {lead.tags.map((t) => (
+                    <span
+                      key={t}
+                      className={`rounded-full border px-2 py-0.5 text-[11px] ${tagClass(
+                        tagSeed.find((x) => x.name === t)?.color ?? "amber",
+                      )}`}
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            )}
+          />
         </TabsContent>
       </Tabs>
 
@@ -447,14 +474,7 @@ export function LeadsPage() {
             </div>
 
             <div className="rounded-xl border border-border p-4">
-              <FieldRow
-                label="Status"
-                value={
-                  <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone[active.status]}`}>
-                    {active.status}
-                  </span>
-                }
-              />
+              <FieldRow label="Status" value={statusSelect(active, "h-8 w-40")} />
               <FieldRow label="Stage" value={pipelineStagesSeed.find((s) => s.id === active.stage)?.name ?? active.stage} />
               <FieldRow label="Email" value={active.email} />
               <FieldRow label="Owner" value={active.owner} />
