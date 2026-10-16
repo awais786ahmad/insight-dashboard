@@ -79,7 +79,7 @@ export function CellEditor({
   if (column.type === "Yes/No" || column.type === "Dropdown") {
     const opts = column.type === "Yes/No" ? ["Yes", "No"] : (column.options ?? []);
     return (
-      <Select value={value || undefined} onValueChange={onChange}>
+      <Select {...(value ? { value } : {})} onValueChange={onChange}>
         <SelectTrigger className={`h-8 ${className ?? ""}`} aria-label={column.name}>
           <SelectValue placeholder={placeholder ?? "Select"} />
         </SelectTrigger>

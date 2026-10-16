@@ -56,8 +56,8 @@ export function DataTableEditDialog({
   const named = cols.filter((c) => c.name.trim());
 
   const save = () => {
-    if (!name.trim()) return toast.error("Table name is required");
-    if (!named.length) return toast.error("Keep at least one named column");
+    if (!name.trim()) { toast.error("Table name is required"); return; }
+    if (!named.length) { toast.error("Keep at least one named column"); return; }
     const ids = new Set(named.map((c) => c.id));
     const columns: DataColumn[] = named.map(({ optionsRaw, ...c }) => {
       const options = c.type === "Dropdown" ? parseOptions(optionsRaw) : undefined;
