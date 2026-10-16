@@ -593,9 +593,26 @@ export const taskPriorities = ["Low", "Medium", "High"] as const;
 
 /* ----------------------------------------------------------- Data tables */
 
-export type ColumnType = "Text" | "Number" | "Date" | "Yes/No";
+export type ColumnType = "Text" | "Number" | "Date" | "Yes/No" | "Dropdown" | "Checkbox";
 
-export type DataColumn = { id: string; name: string; type: ColumnType; defaultValue: string };
+export type DataColumn = {
+  id: string;
+  name: string;
+  type: ColumnType;
+  defaultValue: string;
+  /** Custom values for Dropdown columns. */
+  options?: string[];
+};
+
+export type DataTableView = {
+  /** Columns the search bar matches against (partial, case-insensitive). */
+  searchColumns: string[];
+  /** Columns that expose a filter control above the table. */
+  filterColumns: string[];
+  /** Columns whose header can be clicked to sort. */
+  sortableColumns: string[];
+  defaultSort: { columnId: string; dir: "asc" | "desc" } | null;
+};
 
 export type DataTable = {
   id: string;
@@ -604,6 +621,7 @@ export type DataTable = {
   createdAt: string;
   columns: DataColumn[];
   rows: Record<string, string>[];
+  view?: DataTableView;
 };
 
 export const dataTableSeed: DataTable[] = [
