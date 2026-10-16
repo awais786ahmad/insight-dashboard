@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus, Table2, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, Plus, Search, Table2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,18 +12,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ConfirmDialog, RecordFormModal } from "@/components/dashboard/crud";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { crmCampaigns, dataTableSeed, type ColumnType, type DataColumn, type DataTable } from "@/data/crm";
+import {
+  CellEditor,
+  FilterControl,
+  columnTypes,
+  compareValues,
+  defaultFor,
+  emptyView,
+  matchesFilter,
+  parseOptions,
+  slug,
+  type FilterValue,
+} from "@/components/crm/data-table-cells";
+import { DataTableEditDialog } from "@/components/crm/data-table-edit-dialog";
 
-const columnTypes: ColumnType[] = ["Text", "Number", "Date", "Yes/No"];
-
-const slug = (name: string, i: number) =>
-  `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "col"}_${i}`;
-
-type DraftColumn = { name: string; type: ColumnType; defaultValue: string };
+type DraftColumn = { name: string; type: ColumnType; defaultValue: string; optionsRaw: string };
 
 const emptyTableForm = {
   name: "",
   campaign: crmCampaigns[0]!,
-  columns: [{ name: "", type: "Text" as ColumnType, defaultValue: "" }] as DraftColumn[],
+  columns: [{ name: "", type: "Text" as ColumnType, defaultValue: "", optionsRaw: "" }] as DraftColumn[],
 };
 
 export function DataTablesPage() {
@@ -33,44 +41,65 @@ export function DataTablesPage() {
   const [form, setForm] = React.useState(emptyTableForm);
   const [deletingRow, setDeletingRow] = React.useState<{ tableId: string; rowId: string } | null>(null);
   const [deletingTable, setDeletingTable] = React.useState<DataTable | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
   const [newRow, setNewRow] = React.useState<Record<string, string>>({});
+  const [search, setSearch] = React.useState("");
+  const [filters, setFilters] = React.useState<Record<string, FilterValue>>({});
+  const [sort, setSort] = React.useState<{ columnId: string; dir: "asc" | "desc" } | null>(null);
+  const [addingCol, setAddingCol] = React.useState<string | null>(null);
 
   const active = tables.find((t) => t.id === activeId) ?? null;
+  const view = active?.view ?? emptyView;
 
-  React.useEffect(() => {
-    if (!active) return;
-    const seed: Record<string, string> = {};
-    active.columns.forEach((c) => (seed[c.id] = c.defaultValue));
-    setNewRow(seed);
-  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const resetNewRow = (table: DataTable) => {
+  const seedRow = (table: DataTable) => {
     const seed: Record<string, string> = {};
     table.columns.forEach((c) => (seed[c.id] = c.defaultValue));
     setNewRow(seed);
   };
 
+  React.useEffect(() => {
+    if (!active) return;
+    seedRow(active);
+    setSearch("");
+    setFilters({});
+    setSort(active.view?.defaultSort ?? null);
+    setAddingCol(null);
+  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateActive = (fn: (t: DataTable) => DataTable) =>
+    setTables((ts) => ts.map((t) => (t.id === activeId ? fn(t) : t)));
+
   const addRow = () => {
     if (!active) return;
-    const hasValue = active.columns.some((c) => (newRow[c.id] ?? "").trim());
+    const hasValue = active.columns.some((c) => {
+      const v = (newRow[c.id] ?? "").trim();
+      return v && v !== c.defaultValue;
+    }) || active.columns.some((c) => (newRow[c.id] ?? "").trim() && c.type === "Text");
     if (!hasValue) {
       toast.error("Fill at least one cell before adding the row");
       return;
     }
     const row = { id: crypto.randomUUID(), ...newRow };
-    setTables((ts) => ts.map((t) => (t.id === active.id ? { ...t, rows: [...t.rows, row] } : t)));
-    resetNewRow(active);
+    updateActive((t) => ({ ...t, rows: [...t.rows, row] }));
+    seedRow(active);
     toast.success("Row added");
   };
 
   const editCell = (rowId: string, colId: string, value: string) =>
-    setTables((ts) =>
-      ts.map((t) =>
-        t.id === activeId
-          ? { ...t, rows: t.rows.map((r) => (r["id"] === rowId ? { ...r, [colId]: value } : r)) }
-          : t,
-      ),
-    );
+    updateActive((t) => ({ ...t, rows: t.rows.map((r) => (r["id"] === rowId ? { ...r, [colId]: value } : r)) }));
+
+  const commitNewColumn = () => {
+    const name = (addingCol ?? "").trim();
+    if (!active || !name) {
+      setAddingCol(null);
+      return;
+    }
+    const col: DataColumn = { id: slug(name, crypto.randomUUID().slice(0, 6)), name, type: "Text", defaultValue: "" };
+    updateActive((t) => ({ ...t, columns: [...t.columns, col], rows: t.rows.map((r) => ({ ...r, [col.id]: "" })) }));
+    setNewRow((r) => ({ ...r, [col.id]: "" }));
+    setAddingCol(null);
+    toast.success(`Column "${name}" added`, { description: "Change its type in Edit table." });
+  };
 
   const updateColumn = (i: number, patch: Partial<DraftColumn>) =>
     setForm((f) => ({ ...f, columns: f.columns.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }));
@@ -82,12 +111,15 @@ export function DataTablesPage() {
       toast.error("A table needs a name and at least one column");
       return;
     }
-    const columns: DataColumn[] = cols.map((c, i) => ({
-      id: slug(c.name, i),
-      name: c.name.trim(),
-      type: c.type,
-      defaultValue: c.defaultValue,
-    }));
+    const badDropdown = cols.find((c) => c.type === "Dropdown" && !parseOptions(c.optionsRaw).length);
+    if (badDropdown) {
+      toast.error(`Add at least one value to the "${badDropdown.name}" dropdown`);
+      return;
+    }
+    const columns: DataColumn[] = cols.map((c, i) => {
+      const base: DataColumn = { id: slug(c.name, i), name: c.name.trim(), type: c.type, defaultValue: c.defaultValue };
+      return c.type === "Dropdown" ? { ...base, options: parseOptions(c.optionsRaw) } : base;
+    });
     const table: DataTable = {
       id: crypto.randomUUID(),
       name,
@@ -95,11 +127,45 @@ export function DataTablesPage() {
       createdAt: "Today",
       columns,
       rows: [],
+      view: { ...emptyView, searchColumns: columns.filter((c) => c.type === "Text").map((c) => c.id) },
     };
     setTables((ts) => [table, ...ts]);
     setActiveId(table.id);
     setForm(emptyTableForm);
     toast.success("Table created");
+  };
+
+  /* ---------------------------------------------- derived rows */
+  const visibleRows = React.useMemo(() => {
+    if (!active) return [];
+    const q = search.trim().toLowerCase();
+    let rows = active.rows.filter((r) => {
+      if (q && view.searchColumns.length && !view.searchColumns.some((id) => (r[id] ?? "").toLowerCase().includes(q)))
+        return false;
+      return active.columns.every((c) => !view.filterColumns.includes(c.id) || matchesFilter(c, r[c.id] ?? "", filters[c.id]));
+    });
+    if (sort) {
+      const col = active.columns.find((c) => c.id === sort.columnId);
+      if (col) {
+        rows = [...rows].sort((a, b) => {
+          const d = compareValues(col.type, a[col.id] ?? "", b[col.id] ?? "", col.options);
+          return sort.dir === "asc" ? d : -d;
+        });
+      }
+    }
+    return rows;
+  }, [active, search, filters, sort, view]);
+
+  const filterCols = active ? active.columns.filter((c) => view.filterColumns.includes(c.id)) : [];
+  const searchNames = active
+    ? active.columns.filter((c) => view.searchColumns.includes(c.id)).map((c) => c.name)
+    : [];
+  const hasActiveQuery =
+    !!search.trim() || Object.values(filters).some((f) => f.text || f.min || f.max || (f.choice && f.choice !== "all"));
+
+  const cycleSort = (c: DataColumn) => {
+    if (!view.sortableColumns.includes(c.id)) return;
+    setSort((s) => (s?.columnId !== c.id ? { columnId: c.id, dir: "asc" } : s.dir === "asc" ? { columnId: c.id, dir: "desc" } : null));
   };
 
   return (
@@ -143,7 +209,7 @@ export function DataTablesPage() {
         </Card>
 
         {active ? (
-          <Card>
+          <Card className="min-w-0">
             <CardContent className="p-0">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
                 <div>
@@ -154,24 +220,109 @@ export function DataTablesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{active.campaign}</Badge>
-                  <Button variant="ghost" size="icon" aria-label="Delete table" onClick={() => setDeletingTable(active)}>
-                    <Trash2 className="size-4" />
+                  <Button variant="ghost" size="icon" aria-label="Edit table" onClick={() => setEditOpen(true)}>
+                    <Pencil className="size-4" />
                   </Button>
                 </div>
               </div>
+
+              {searchNames.length || filterCols.length ? (
+                <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+                  {searchNames.length ? (
+                    <div className="relative w-full sm:w-64">
+                      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder={`Search ${searchNames.join(", ")}`}
+                        className="h-8 pl-9"
+                        aria-label="Search table"
+                      />
+                    </div>
+                  ) : null}
+                  {filterCols.map((c) => (
+                    <div key={c.id} className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">{c.name}</span>
+                      <FilterControl
+                        column={c}
+                        value={filters[c.id] ?? {}}
+                        onChange={(v) => setFilters((f) => ({ ...f, [c.id]: v }))}
+                      />
+                    </div>
+                  ))}
+                  {hasActiveQuery ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSearch("");
+                        setFilters({});
+                      }}
+                    >
+                      <X className="mr-1 size-4" />
+                      Clear
+                    </Button>
+                  ) : null}
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {visibleRows.length} of {active.rows.length} rows
+                  </span>
+                </div>
+              ) : null}
 
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12" />
-                      {active.columns.map((c) => (
-                        <TableHead key={c.id} className="min-w-40">
-                          {c.name}
-                          <span className="ml-2 text-xs font-normal text-muted-foreground">{c.type}</span>
-                        </TableHead>
-                      ))}
-                      <TableHead className="w-12" />
+                      {active.columns.map((c) => {
+                        const sortable = view.sortableColumns.includes(c.id);
+                        const dir = sort?.columnId === c.id ? sort.dir : null;
+                        return (
+                          <TableHead key={c.id} className="min-w-40">
+                            {sortable ? (
+                              <button
+                                type="button"
+                                onClick={() => cycleSort(c)}
+                                className="inline-flex items-center gap-1 hover:text-foreground"
+                                aria-label={`Sort by ${c.name}`}
+                              >
+                                {c.name}
+                                {dir === "asc" ? (
+                                  <ArrowUp className="size-3.5" />
+                                ) : dir === "desc" ? (
+                                  <ArrowDown className="size-3.5" />
+                                ) : (
+                                  <ArrowUpDown className="size-3.5 opacity-50" />
+                                )}
+                              </button>
+                            ) : (
+                              c.name
+                            )}
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">{c.type}</span>
+                          </TableHead>
+                        );
+                      })}
+                      <TableHead className={addingCol !== null ? "min-w-44" : "w-12"}>
+                        {addingCol !== null ? (
+                          <Input
+                            autoFocus
+                            value={addingCol}
+                            onChange={(e) => setAddingCol(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitNewColumn();
+                              if (e.key === "Escape") setAddingCol(null);
+                            }}
+                            onBlur={commitNewColumn}
+                            placeholder="Column name ↵"
+                            className="h-8"
+                            aria-label="New column name"
+                          />
+                        ) : (
+                          <Button size="icon" variant="ghost" aria-label="Add column" onClick={() => setAddingCol("")}>
+                            <Plus className="size-4" />
+                          </Button>
+                        )}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -183,28 +334,28 @@ export function DataTablesPage() {
                       </TableCell>
                       {active.columns.map((c) => (
                         <TableCell key={c.id}>
-                          <Input
+                          <CellEditor
+                            column={c}
                             value={newRow[c.id] ?? ""}
-                            onChange={(e) => setNewRow((r) => ({ ...r, [c.id]: e.target.value }))}
-                            onKeyDown={(e) => e.key === "Enter" && addRow()}
+                            onChange={(v) => setNewRow((r) => ({ ...r, [c.id]: v }))}
+                            onEnter={addRow}
                             placeholder={c.name}
-                            type={c.type === "Number" ? "number" : c.type === "Date" ? "date" : "text"}
-                            className="h-8 border-transparent bg-background"
+                            className="border-transparent bg-background"
                           />
                         </TableCell>
                       ))}
                       <TableCell />
                     </TableRow>
-                    {active.rows.map((row) => (
+                    {visibleRows.map((row) => (
                       <TableRow key={row["id"]}>
                         <TableCell className="text-xs text-muted-foreground">•</TableCell>
                         {active.columns.map((c) => (
                           <TableCell key={c.id}>
-                            <Input
+                            <CellEditor
+                              column={c}
                               value={row[c.id] ?? ""}
-                              onChange={(e) => editCell(row["id"]!, c.id, e.target.value)}
-                              type={c.type === "Number" ? "number" : c.type === "Date" ? "date" : "text"}
-                              className="h-8 border-transparent bg-transparent hover:border-border focus:border-ring"
+                              onChange={(v) => editCell(row["id"]!, c.id, v)}
+                              className="border-transparent bg-transparent hover:border-border focus:border-ring"
                             />
                           </TableCell>
                         ))}
@@ -220,13 +371,15 @@ export function DataTablesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {!active.rows.length ? (
+                    {!visibleRows.length ? (
                       <TableRow>
                         <TableCell
                           colSpan={active.columns.length + 2}
                           className="py-10 text-center text-sm text-muted-foreground"
                         >
-                          No rows yet — fill the row above and press the plus button.
+                          {active.rows.length
+                            ? "No rows match your search or filters."
+                            : "No rows yet — fill the row above and press the plus button."}
                         </TableCell>
                       </TableRow>
                     ) : null}
@@ -274,53 +427,109 @@ export function DataTablesPage() {
         </div>
         <div className="space-y-3">
           <Label>Columns</Label>
-          {form.columns.map((c, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2">
-              <Input
-                value={c.name}
-                onChange={(e) => updateColumn(i, { name: e.target.value })}
-                placeholder="Column name"
-                className="min-w-32 flex-1"
-              />
-              <Select value={c.type} onValueChange={(v) => updateColumn(i, { type: v as ColumnType })}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {columnTypes.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                value={c.defaultValue}
-                onChange={(e) => updateColumn(i, { defaultValue: e.target.value })}
-                placeholder="Default"
-                className="w-28"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Remove column"
-                onClick={() => setForm((f) => ({ ...f, columns: f.columns.filter((_, idx) => idx !== i) }))}
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-          ))}
+          {form.columns.map((c, i) => {
+            const draftCol: DataColumn = {
+              id: `draft-${i}`,
+              name: "Default",
+              type: c.type,
+              defaultValue: c.defaultValue,
+              options: parseOptions(c.optionsRaw),
+            };
+            return (
+              <div key={i} className="space-y-2 rounded-xl border border-border p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    value={c.name}
+                    onChange={(e) => updateColumn(i, { name: e.target.value })}
+                    placeholder="Column name"
+                    className="min-w-32 flex-1"
+                  />
+                  <Select
+                    value={c.type}
+                    onValueChange={(v) => {
+                      const type = v as ColumnType;
+                      updateColumn(i, { type, defaultValue: defaultFor(type, parseOptions(c.optionsRaw)) });
+                    }}
+                  >
+                    <SelectTrigger className="w-44" aria-label="Column type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {columnTypes.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove column"
+                    onClick={() => setForm((f) => ({ ...f, columns: f.columns.filter((_, idx) => idx !== i) }))}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+                {c.type === "Dropdown" ? (
+                  <Input
+                    value={c.optionsRaw}
+                    onChange={(e) => {
+                      const opts = parseOptions(e.target.value);
+                      updateColumn(i, {
+                        optionsRaw: e.target.value,
+                        defaultValue: opts.includes(c.defaultValue) ? c.defaultValue : (opts[0] ?? ""),
+                      });
+                    }}
+                    placeholder="Dropdown values, comma separated — e.g. Hot, Warm, Cold"
+                    aria-label="Dropdown values"
+                  />
+                ) : null}
+                <div className="flex items-center gap-2">
+                  <span className="w-16 text-xs text-muted-foreground">Default</span>
+                  <div className="w-48">
+                    <CellEditor
+                      column={draftCol}
+                      value={c.defaultValue}
+                      onChange={(v) => updateColumn(i, { defaultValue: v })}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setForm((f) => ({ ...f, columns: [...f.columns, { name: "", type: "Text", defaultValue: "" }] }))}
+            onClick={() =>
+              setForm((f) => ({ ...f, columns: [...f.columns, { name: "", type: "Text", defaultValue: "", optionsRaw: "" }] }))
+            }
           >
             <Plus className="mr-2 size-4" />
             Add column
           </Button>
         </div>
       </RecordFormModal>
+
+      {active ? (
+        <DataTableEditDialog
+          table={active}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSave={(next) => {
+            updateActive(() => next);
+            seedRow(next);
+            setFilters({});
+            setSort(next.view?.defaultSort ?? null);
+          }}
+          onDelete={() => {
+            setEditOpen(false);
+            setDeletingTable(active);
+          }}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={!!deletingRow}

@@ -593,9 +593,26 @@ export const taskPriorities = ["Low", "Medium", "High"] as const;
 
 /* ----------------------------------------------------------- Data tables */
 
-export type ColumnType = "Text" | "Number" | "Date" | "Yes/No";
+export type ColumnType = "Text" | "Number" | "Date" | "Yes/No" | "Dropdown" | "Checkbox";
 
-export type DataColumn = { id: string; name: string; type: ColumnType; defaultValue: string };
+export type DataColumn = {
+  id: string;
+  name: string;
+  type: ColumnType;
+  defaultValue: string;
+  /** Custom values for Dropdown columns. */
+  options?: string[];
+};
+
+export type DataTableView = {
+  /** Columns the search bar matches against (partial, case-insensitive). */
+  searchColumns: string[];
+  /** Columns that expose a filter control above the table. */
+  filterColumns: string[];
+  /** Columns whose header can be clicked to sort. */
+  sortableColumns: string[];
+  defaultSort: { columnId: string; dir: "asc" | "desc" } | null;
+};
 
 export type DataTable = {
   id: string;
@@ -604,6 +621,7 @@ export type DataTable = {
   createdAt: string;
   columns: DataColumn[];
   rows: Record<string, string>[];
+  view?: DataTableView;
 };
 
 export const dataTableSeed: DataTable[] = [
@@ -618,12 +636,20 @@ export const dataTableSeed: DataTable[] = [
       { id: "city", name: "City", type: "Text", defaultValue: "Lahore" },
       { id: "budget", name: "Budget", type: "Number", defaultValue: "0" },
       { id: "interested", name: "Interested", type: "Yes/No", defaultValue: "Yes" },
+      { id: "plan", name: "Plan", type: "Dropdown", defaultValue: "Basic", options: ["Basic", "Pro", "Enterprise"] },
+      { id: "callback", name: "Callback", type: "Checkbox", defaultValue: "false" },
     ],
     rows: [
-      { id: "r1", name: "Ali", age: "28", city: "Lahore", budget: "50000", interested: "Yes" },
-      { id: "r2", name: "Hina", age: "34", city: "Karachi", budget: "120000", interested: "No" },
-      { id: "r3", name: "Usman", age: "41", city: "Islamabad", budget: "80000", interested: "Yes" },
+      { id: "r1", name: "Ali", age: "28", city: "Lahore", budget: "50000", interested: "Yes", plan: "Pro", callback: "true" },
+      { id: "r2", name: "Hina", age: "34", city: "Karachi", budget: "120000", interested: "No", plan: "Enterprise", callback: "false" },
+      { id: "r3", name: "Usman", age: "41", city: "Islamabad", budget: "80000", interested: "Yes", plan: "Basic", callback: "false" },
     ],
+    view: {
+      searchColumns: ["name", "city"],
+      filterColumns: ["plan", "interested"],
+      sortableColumns: ["name", "age", "budget"],
+      defaultSort: { columnId: "budget", dir: "desc" },
+    },
   },
   {
     id: "d2",
