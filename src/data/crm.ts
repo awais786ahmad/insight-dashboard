@@ -636,12 +636,20 @@ export const dataTableSeed: DataTable[] = [
       { id: "city", name: "City", type: "Text", defaultValue: "Lahore" },
       { id: "budget", name: "Budget", type: "Number", defaultValue: "0" },
       { id: "interested", name: "Interested", type: "Yes/No", defaultValue: "Yes" },
+      { id: "plan", name: "Plan", type: "Dropdown", defaultValue: "Basic", options: ["Basic", "Pro", "Enterprise"] },
+      { id: "callback", name: "Callback", type: "Checkbox", defaultValue: "false" },
     ],
     rows: [
-      { id: "r1", name: "Ali", age: "28", city: "Lahore", budget: "50000", interested: "Yes" },
-      { id: "r2", name: "Hina", age: "34", city: "Karachi", budget: "120000", interested: "No" },
-      { id: "r3", name: "Usman", age: "41", city: "Islamabad", budget: "80000", interested: "Yes" },
+      { id: "r1", name: "Ali", age: "28", city: "Lahore", budget: "50000", interested: "Yes", plan: "Pro", callback: "true" },
+      { id: "r2", name: "Hina", age: "34", city: "Karachi", budget: "120000", interested: "No", plan: "Enterprise", callback: "false" },
+      { id: "r3", name: "Usman", age: "41", city: "Islamabad", budget: "80000", interested: "Yes", plan: "Basic", callback: "false" },
     ],
+    view: {
+      searchColumns: ["name", "city"],
+      filterColumns: ["plan", "interested"],
+      sortableColumns: ["name", "age", "budget"],
+      defaultSort: { columnId: "budget", dir: "desc" },
+    },
   },
   {
     id: "d2",
